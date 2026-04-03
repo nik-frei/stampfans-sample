@@ -618,7 +618,7 @@
             <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;" id="summaryFile">—</div>
             <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;" id="summaryPages">—</div>
           </div>
-          <div class="price-badge">$2.49</div>
+          <div class="price-badge">$2</div>
         </div>
 
         <div style="margin-bottom: 20px;">
@@ -627,14 +627,14 @@
         </div>
 
         <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
-          By clicking "Pay $2.49 &amp; Send," your order will be saved and you'll be redirected to Stripe to complete payment. Once paid, we'll print and mail your document via USPS. Delivery takes 4–7 business days.
+          By clicking "Pay $2 &amp; Send," your order will be saved and you'll be redirected to Stripe to complete payment. Once paid, we'll print and mail your document via USPS. Delivery takes 4–7 business days.
         </p>
 
         <div class="btn-row">
           <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
           <button class="btn btn-primary" id="payBtn" onclick="submitOrder()" style="flex: 1;">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-            Pay $2.49 &amp; Send
+            Pay $2 &amp; Send
           </button>
         </div>
       </div>
@@ -1065,7 +1065,7 @@ async function submitOrder() {
     btn.disabled = false;
     btn.innerHTML = `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-      Pay $2.49 &amp; Send
+      Pay $2 &amp; Send
     `;
   }
 }
