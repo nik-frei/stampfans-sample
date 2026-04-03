@@ -1,0 +1,1066 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>StampFans — Send a Sample</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,400;0,8..60,600;0,8..60,700;1,8..60,400&family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=JetBrains+Mono:wght@400;500&display=swap');
+
+  :root {
+    --bg: #faf3ea;
+    --surface: #fff;
+    --surface-hover: #f5ede3;
+    --border: #e4dbd0;
+    --border-light: #d4c9bc;
+    --text: #2c2420;
+    --text-dim: #6b5e54;
+    --text-muted: #9a8e82;
+    --accent: #d4654a;
+    --accent-hover: #be5740;
+    --accent-light: rgba(212, 101, 74, 0.08);
+    --accent-green: #5a9a6e;
+    --white: #fff;
+    --paper: #fff;
+    --paper-shadow: rgba(44, 36, 32, 0.12);
+    --radius: 8px;
+    --mono: 'JetBrains Mono', monospace;
+    --sans: 'DM Sans', system-ui, sans-serif;
+    --serif: 'Source Serif 4', Georgia, serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--sans);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  .app {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 32px 24px;
+  }
+
+  /* ── Header ── */
+  .header { margin-bottom: 28px; }
+  .header h1 {
+    font-family: var(--serif);
+    font-size: 26px;
+    font-weight: 700;
+    color: var(--text);
+    margin-bottom: 6px;
+  }
+  .header p {
+    font-size: 15px;
+    color: var(--text-dim);
+    line-height: 1.5;
+    max-width: 620px;
+  }
+  .header a { color: var(--accent); text-decoration: underline; }
+
+  /* ── Steps indicator ── */
+  .steps-bar {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 28px;
+    flex-wrap: wrap;
+  }
+  .step-pill {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    border-radius: 100px;
+    font-size: 13px;
+    font-weight: 500;
+    background: var(--surface);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    transition: all 0.3s;
+  }
+  .step-pill.active {
+    background: var(--accent);
+    border-color: var(--accent);
+    color: var(--white);
+  }
+  .step-pill.done {
+    background: var(--accent-green);
+    border-color: var(--accent-green);
+    color: var(--white);
+  }
+  .step-num {
+    width: 22px; height: 22px;
+    border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 11px; font-weight: 600;
+    background: rgba(255,255,255,0.2);
+  }
+  .step-pill:not(.active):not(.done) .step-num {
+    background: var(--border);
+    color: var(--text-muted);
+  }
+  .step-check { display: none; }
+  .step-pill.done .step-num { display: none; }
+  .step-pill.done .step-check { display: inline; }
+
+  /* ── Layout ── */
+  .main-layout {
+    display: grid;
+    grid-template-columns: 300px 1fr;
+    gap: 24px;
+    align-items: start;
+  }
+
+  .sidebar {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    position: sticky;
+    top: 24px;
+  }
+
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+  }
+  .panel-label {
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--text-muted);
+    margin-bottom: 12px;
+  }
+
+  /* ── Upload zone ── */
+  .upload-zone {
+    border: 2px dashed var(--border);
+    border-radius: var(--radius);
+    padding: 28px 16px;
+    text-align: center;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  .upload-zone:hover, .upload-zone.drag-over {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+  .upload-zone.has-file {
+    border-style: solid;
+    border-color: var(--accent-green);
+    background: rgba(90, 154, 110, 0.06);
+  }
+  .upload-icon {
+    width: 32px; height: 32px;
+    margin: 0 auto 8px;
+    color: var(--text-muted);
+  }
+  .upload-zone.has-file .upload-icon { color: var(--accent-green); }
+  .upload-zone p { font-size: 13px; color: var(--text-dim); line-height: 1.5; }
+  .upload-zone .hint { font-size: 11px; color: var(--text-muted); margin-top: 4px; }
+  .file-name {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--accent-green);
+    font-weight: 500;
+    margin-top: 6px;
+    word-break: break-all;
+  }
+
+  /* ── Format buttons ── */
+  .format-options { display: flex; flex-direction: column; gap: 6px; }
+  .format-btn {
+    display: flex; align-items: center; gap: 12px;
+    padding: 10px 12px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; transition: all 0.15s; text-align: left;
+    width: 100%;
+  }
+  .format-btn:hover { background: var(--surface-hover); }
+  .format-btn.active {
+    border-color: var(--accent);
+    background: var(--accent-light);
+  }
+  .format-thumb {
+    width: 36px; height: 28px; border-radius: 3px;
+    border: 1px solid var(--border); background: var(--surface);
+    flex-shrink: 0;
+  }
+  .format-thumb.postcard { width: 36px; height: 24px; }
+  .format-thumb.letter { width: 28px; height: 36px; }
+  .format-thumb.zine { width: 28px; height: 36px; border-left: 2px solid var(--accent); }
+  .format-name { font-size: 13px; font-weight: 500; color: var(--text); }
+  .format-dims { font-size: 11px; color: var(--text-muted); font-family: var(--mono); }
+
+  /* ── Page nav ── */
+  .page-nav {
+    display: flex; align-items: center; justify-content: center; gap: 12px;
+  }
+  .page-nav button {
+    width: 32px; height: 32px; border-radius: 6px;
+    border: 1px solid var(--border); background: var(--surface);
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    transition: all 0.15s; color: var(--text);
+  }
+  .page-nav button:hover:not(:disabled) { background: var(--surface-hover); }
+  .page-nav button:disabled { opacity: 0.3; cursor: default; }
+  .page-nav span { font-size: 13px; font-family: var(--mono); color: var(--text-dim); }
+
+  /* ── Preview area ── */
+  .preview-area {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    min-height: 500px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    padding: 32px;
+    position: relative;
+  }
+
+  .empty-state {
+    text-align: center; color: var(--text-muted);
+  }
+  .empty-state svg {
+    width: 48px; height: 48px; margin-bottom: 12px; opacity: 0.4;
+  }
+  .empty-state p { font-size: 14px; }
+  .empty-state .hint { font-size: 12px; margin-top: 4px; }
+
+  /* ── Paper / flip ── */
+  .paper-container {
+    perspective: 1200px;
+    display: inline-block;
+    position: relative;
+  }
+  .paper-flipper {
+    position: relative;
+    transform-style: preserve-3d;
+    transition: transform 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    cursor: pointer;
+  }
+  .paper-flipper.flipped { transform: rotateY(180deg); }
+  .paper-front, .paper-back {
+    backface-visibility: hidden;
+    position: absolute; top: 0; left: 0; width: 100%; height: 100%;
+    border-radius: 4px;
+    overflow: hidden;
+    box-shadow: 0 4px 24px var(--paper-shadow);
+    background: var(--paper);
+  }
+  .paper-back { transform: rotateY(180deg); }
+  .paper-front canvas, .paper-back canvas {
+    width: 100%; height: 100%; display: block;
+  }
+  .flip-hint {
+    position: absolute; bottom: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(44, 36, 32, 0.7); color: rgba(255,255,255,0.9);
+    font-size: 11px; font-family: var(--sans); padding: 5px 14px;
+    border-radius: 20px; pointer-events: none; opacity: 0;
+    transition: opacity 0.2s; white-space: nowrap; z-index: 10;
+  }
+  .paper-flipper:hover .flip-hint { opacity: 1; }
+  .paper-flipper.flip-hint-hidden .flip-hint { display: none; }
+
+  .page-side-label {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    background: rgba(44, 36, 32, 0.6); color: rgba(255,255,255,0.95);
+    font-size: 11px; font-weight: 500; font-family: var(--mono);
+    padding: 4px 14px; border-radius: 20px; pointer-events: none; z-index: 10;
+  }
+
+  .dim-label {
+    position: absolute; font-family: var(--mono); font-size: 11px;
+    color: var(--text-muted); white-space: nowrap;
+  }
+  .dim-label.width-label { bottom: -24px; left: 50%; transform: translateX(-50%); }
+  .dim-label.height-label { right: -60px; top: 50%; transform: translateY(-50%) rotate(90deg); }
+
+  /* ── Zine spread ── */
+  .zine-spread { display: flex; gap: 2px; position: relative; }
+  .zine-spread .paper-front, .zine-spread .paper-back { position: relative; }
+  .zine-spine {
+    position: absolute; left: 50%; top: 0; bottom: 0; width: 2px;
+    background: rgba(44,36,32,0.08); transform: translateX(-50%); z-index: 2;
+  }
+
+  /* ── Address form ── */
+  .address-section {
+    display: none;
+  }
+  .address-section.visible {
+    display: block;
+  }
+  .address-form {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 24px;
+  }
+  .form-row {
+    display: grid;
+    gap: 12px;
+    margin-bottom: 12px;
+  }
+  .form-row.two-col { grid-template-columns: 1fr 1fr; }
+  .form-row.three-col { grid-template-columns: 2fr 1fr 1fr; }
+  .form-group label {
+    display: block;
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-dim);
+    margin-bottom: 5px;
+  }
+  .form-group input, .form-group select {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    font-size: 14px;
+    font-family: var(--sans);
+    color: var(--text);
+    background: var(--white);
+    transition: border-color 0.15s;
+  }
+  .form-group input:focus, .form-group select:focus {
+    outline: none;
+    border-color: var(--accent);
+  }
+  .form-group input.error {
+    border-color: #c0392b;
+  }
+
+  /* ── Buttons ── */
+  .btn-row {
+    display: flex;
+    gap: 12px;
+    margin-top: 20px;
+  }
+  .btn {
+    padding: 12px 24px;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+    font-family: var(--sans);
+    cursor: pointer;
+    transition: all 0.15s;
+    border: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .btn-primary {
+    background: var(--accent);
+    color: var(--white);
+  }
+  .btn-primary:hover { background: var(--accent-hover); }
+  .btn-primary:disabled {
+    opacity: 0.5; cursor: default;
+  }
+  .btn-secondary {
+    background: var(--surface);
+    color: var(--text);
+    border: 1px solid var(--border);
+  }
+  .btn-secondary:hover { background: var(--surface-hover); }
+
+  .price-badge {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--accent-green);
+    background: rgba(90, 154, 110, 0.1);
+    padding: 4px 12px;
+    border-radius: 100px;
+    margin-left: auto;
+  }
+
+  /* ── Loading ── */
+  .loading { display: flex; flex-direction: column; align-items: center; gap: 12px; color: var(--text-muted); font-size: 13px; }
+  .spinner {
+    width: 24px; height: 24px; border: 2px solid var(--border);
+    border-top-color: var(--accent); border-radius: 50%; animation: spin 0.8s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* ── Status toast ── */
+  .toast {
+    position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+    padding: 12px 24px; border-radius: 8px;
+    font-size: 14px; font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.15);
+    z-index: 1000;
+    opacity: 0; transition: opacity 0.3s;
+    pointer-events: none;
+  }
+  .toast.visible { opacity: 1; }
+  .toast.success { background: var(--accent-green); color: var(--white); }
+  .toast.error { background: #c0392b; color: var(--white); }
+
+  /* ── Responsive ── */
+  @media (max-width: 768px) {
+    .main-layout { grid-template-columns: 1fr; }
+    .sidebar { position: static; }
+    .preview-area { min-height: 350px; }
+    .form-row.two-col, .form-row.three-col { grid-template-columns: 1fr; }
+    .steps-bar { gap: 4px; }
+    .step-pill { padding: 6px 12px; font-size: 12px; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- Header -->
+  <div class="header">
+    <h1>Send a Sample</h1>
+    <p>See what physical mail from StampFans looks like. Upload a PDF, preview it, enter a mailing address, and we'll print &amp; ship it for $2.49. Send it to yourself or a friend.</p>
+  </div>
+
+  <!-- Steps -->
+  <div class="steps-bar">
+    <div class="step-pill active" id="step1pill">
+      <span class="step-num">1</span>
+      <span class="step-check">✓</span>
+      Upload &amp; Preview
+    </div>
+    <div class="step-pill" id="step2pill">
+      <span class="step-num">2</span>
+      <span class="step-check">✓</span>
+      Mailing Address
+    </div>
+    <div class="step-pill" id="step3pill">
+      <span class="step-num">3</span>
+      <span class="step-check">✓</span>
+      Pay &amp; Send
+    </div>
+  </div>
+
+  <!-- Step 1: Upload & Preview -->
+  <div id="step1" class="step-content">
+    <div class="main-layout">
+      <div class="sidebar">
+        <!-- Upload -->
+        <div class="panel">
+          <div class="panel-label">Upload</div>
+          <div class="upload-zone" id="uploadZone">
+            <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+            <p>Drop your PDF here<br>or click to browse</p>
+            <p class="hint">PDF files only</p>
+          </div>
+        </div>
+
+        <!-- Format -->
+        <div class="panel">
+          <div class="panel-label">Mail Format</div>
+          <div class="format-options">
+            <button class="format-btn active" data-format="postcard" onclick="setFormat('postcard')">
+              <div class="format-thumb postcard"></div>
+              <div><div class="format-name">Postcard</div><div class="format-dims">6 × 9 in</div></div>
+            </button>
+            <button class="format-btn" data-format="letter" onclick="setFormat('letter')">
+              <div class="format-thumb letter"></div>
+              <div><div class="format-name">Letter</div><div class="format-dims">8.5 × 11 in</div></div>
+            </button>
+            <button class="format-btn" data-format="zine" onclick="setFormat('zine')">
+              <div class="format-thumb zine"></div>
+              <div><div class="format-name">Zine</div><div class="format-dims">5.5 × 8.5 in booklet</div></div>
+            </button>
+          </div>
+        </div>
+
+        <!-- Page nav -->
+        <div class="panel" id="pageNavPanel" style="display:none;">
+          <div class="panel-label">Pages</div>
+          <div class="page-nav">
+            <button onclick="prevPage()" id="prevBtn" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
+            </button>
+            <span id="pageInfo">1 / 1</span>
+            <button onclick="nextPage()" id="nextBtn" disabled>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- Not sure how to create? -->
+        <div class="panel" style="background: var(--accent-light); border-color: rgba(212,101,74,0.15);">
+          <div class="panel-label" style="color: var(--accent);">Need a template?</div>
+          <p style="font-size: 13px; color: var(--text-dim); line-height: 1.5;">
+            Try our Canva templates:
+            <a href="https://www.canva.com/design/DAGo3NZL3Qo/AhkoQ9YANOo-fosDIwYs4g/view" target="_blank" style="color: var(--accent);">postcard</a>,
+            <a href="https://www.canva.com/design/DAG9sTjYrX0/ANC2xyhLf-_OAO6FLfgsRg/view" target="_blank" style="color: var(--accent);">letter</a>, or
+            <a href="https://www.canva.com/design/DAGmKWAnbTM/SJ78RLxdaojqn5aRWPXTiQ/view" target="_blank" style="color: var(--accent);">zine</a>.
+            Download as PDF when done.
+          </p>
+        </div>
+
+        <!-- Continue button -->
+        <button class="btn btn-primary" id="continueToAddress" onclick="goToStep(2)" disabled style="width:100%;">
+          Continue to Address →
+        </button>
+      </div>
+
+      <!-- Preview -->
+      <div class="preview-area" id="previewArea">
+        <div class="empty-state" id="emptyState">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+            <rect x="3" y="3" width="18" height="18" rx="2"></rect>
+            <circle cx="8.5" cy="8.5" r="1.5"></circle>
+            <polyline points="21 15 16 10 5 21"></polyline>
+          </svg>
+          <p>Upload a PDF to preview</p>
+          <p class="hint">Click the format to see how it will look in print</p>
+        </div>
+        <div id="previewContent" style="display:none;"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 2: Address -->
+  <div id="step2" class="step-content" style="display:none;">
+    <div style="max-width: 560px;">
+      <div class="address-form">
+        <div class="panel-label">Recipient Address</div>
+        <p style="font-size: 13px; color: var(--text-dim); margin-bottom: 16px;">
+          Who should receive this mail? Enter your own address or send it to a friend.
+        </p>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="fullName">Name *</label>
+            <input type="text" id="fullName" placeholder="Jane Doe" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="address1">Address Line 1 *</label>
+            <input type="text" id="address1" placeholder="123 Main St" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="address2">Address Line 2</label>
+            <input type="text" id="address2" placeholder="Apt 4B (optional)">
+          </div>
+        </div>
+        <div class="form-row three-col">
+          <div class="form-group">
+            <label for="city">City *</label>
+            <input type="text" id="city" placeholder="Jacksonville" required>
+          </div>
+          <div class="form-group">
+            <label for="state">State *</label>
+            <input type="text" id="state" placeholder="FL" maxlength="2" required>
+          </div>
+          <div class="form-group">
+            <label for="zip">ZIP *</label>
+            <input type="text" id="zip" placeholder="32257" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="email">Your Email *</label>
+            <input type="email" id="email" placeholder="jane@example.com" required>
+          </div>
+        </div>
+
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+          <button class="btn btn-primary" id="continueToPayment" onclick="goToStep(3)">
+            Review &amp; Pay →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3: Review & Pay -->
+  <div id="step3" class="step-content" style="display:none;">
+    <div style="max-width: 560px;">
+      <div class="address-form">
+        <div class="panel-label">Order Summary</div>
+
+        <div style="display: flex; gap: 16px; align-items: flex-start; margin-bottom: 20px; padding-bottom: 20px; border-bottom: 1px solid var(--border);">
+          <div id="summaryThumb" style="width: 80px; height: 60px; background: var(--surface-hover); border-radius: 4px; overflow: hidden; flex-shrink: 0; border: 1px solid var(--border);">
+            <canvas id="thumbCanvas" style="width:100%; height:100%;"></canvas>
+          </div>
+          <div>
+            <div style="font-weight: 600; font-size: 15px;" id="summaryFormat">Postcard</div>
+            <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;" id="summaryFile">—</div>
+            <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;" id="summaryPages">—</div>
+          </div>
+          <div class="price-badge">$2.49</div>
+        </div>
+
+        <div style="margin-bottom: 20px;">
+          <div class="panel-label" style="margin-bottom: 8px;">Sending to</div>
+          <div style="font-size: 14px; line-height: 1.6;" id="summaryAddress">—</div>
+        </div>
+
+        <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
+          By clicking "Pay $2.49 &amp; Send," your order will be saved and you'll be redirected to Stripe to complete payment. Once paid, we'll print and mail your document via USPS. Delivery takes 4–7 business days.
+        </p>
+
+        <div class="btn-row">
+          <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+          <button class="btn btn-primary" id="payBtn" onclick="submitOrder()" style="flex: 1;">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+            Pay $2.49 &amp; Send
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Toast -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ============================================================
+// CONFIGURATION — Fill these in
+// ============================================================
+// Stripe link loaded from server at init
+let STRIPE_PAYMENT_LINK = '';
+fetch('/config').then(r => r.json()).then(c => { STRIPE_PAYMENT_LINK = c.stripePaymentLink; });
+
+// ============================================================
+// STATE
+// ============================================================
+let pdfDoc = null;
+let pdfFile = null;
+let rawFileData = null;
+let currentFormat = 'postcard';
+let currentPage = 1;
+let totalPages = 0;
+let isFlipped = false;
+let currentStep = 1;
+
+const FORMAT_CONFIG = {
+  postcard: { w: 9, h: 6, label: 'Postcard', maxPages: 2, twoSided: true },
+  letter:   { w: 8.5, h: 11, label: 'Letter', maxPages: 1, twoSided: false },
+  zine:     { w: 11, h: 8.5, label: 'Zine', maxPages: 40, twoSided: false, booklet: true },
+};
+
+pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ============================================================
+// STEP NAVIGATION
+// ============================================================
+function goToStep(step) {
+  if (step === 2 && !pdfDoc) return;
+  if (step === 3 && !validateAddress()) return;
+
+  // Update pills
+  for (let i = 1; i <= 3; i++) {
+    const pill = document.getElementById(`step${i}pill`);
+    pill.classList.remove('active', 'done');
+    if (i < step) pill.classList.add('done');
+    else if (i === step) pill.classList.add('active');
+  }
+
+  // Show/hide content
+  for (let i = 1; i <= 3; i++) {
+    document.getElementById(`step${i}`).style.display = i === step ? '' : 'none';
+  }
+
+  currentStep = step;
+
+  if (step === 3) populateSummary();
+
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ============================================================
+// FILE UPLOAD
+// ============================================================
+const uploadZone = document.getElementById('uploadZone');
+
+// Create file input dynamically (Softr strips static hidden inputs)
+const fileInput = document.createElement('input');
+fileInput.type = 'file';
+fileInput.accept = '.pdf,application/pdf';
+fileInput.style.display = 'none';
+document.body.appendChild(fileInput);
+
+uploadZone.addEventListener('click', () => fileInput.click());
+uploadZone.addEventListener('dragover', e => { e.preventDefault(); uploadZone.classList.add('drag-over'); });
+uploadZone.addEventListener('dragleave', () => uploadZone.classList.remove('drag-over'));
+uploadZone.addEventListener('drop', e => {
+  e.preventDefault();
+  uploadZone.classList.remove('drag-over');
+  const f = e.dataTransfer.files[0];
+  if (f && f.type === 'application/pdf') handleFile(f);
+});
+fileInput.addEventListener('change', e => { if (e.target.files[0]) handleFile(e.target.files[0]); });
+
+async function handleFile(file) {
+  pdfFile = file;
+
+  // Read as arraybuffer for pdf.js and for Airtable Content API upload
+  const buf = await file.arrayBuffer();
+  rawFileData = buf;
+  pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
+  totalPages = pdfDoc.numPages;
+  currentPage = 1;
+  isFlipped = false;
+
+  // Update upload zone
+  uploadZone.classList.add('has-file');
+  uploadZone.innerHTML = `
+    <svg class="upload-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+      <polyline points="14 2 14 8 20 8"></polyline>
+      <polyline points="9 15 12 12 15 15"></polyline>
+    </svg>
+    <p style="font-weight:500; color: var(--accent-green);">PDF loaded</p>
+    <div class="file-name">${file.name}</div>
+    <p class="hint">${totalPages} page${totalPages > 1 ? 's' : ''} · Click to replace</p>
+  `;
+
+  document.getElementById('continueToAddress').disabled = false;
+  renderPreview();
+  updatePageNav();
+}
+
+// ============================================================
+// FORMAT SELECTION
+// ============================================================
+function setFormat(fmt) {
+  currentFormat = fmt;
+  document.querySelectorAll('.format-btn').forEach(b => {
+    b.classList.toggle('active', b.dataset.format === fmt);
+  });
+  currentPage = 1;
+  isFlipped = false;
+  if (pdfDoc) {
+    renderPreview();
+    updatePageNav();
+  }
+}
+
+// ============================================================
+// PAGE NAV
+// ============================================================
+function updatePageNav() {
+  const cfg = FORMAT_CONFIG[currentFormat];
+  const panel = document.getElementById('pageNavPanel');
+
+  if (currentFormat === 'postcard') {
+    // Postcard: always 2 sides, use flip
+    panel.style.display = 'none';
+    return;
+  }
+
+  if (currentFormat === 'zine') {
+    // Zine: spread view, navigate by spread
+    const numSpreads = Math.ceil(totalPages / 2);
+    panel.style.display = numSpreads > 1 ? '' : 'none';
+    document.getElementById('pageInfo').textContent = `Spread ${Math.ceil(currentPage / 2)} / ${numSpreads}`;
+    document.getElementById('prevBtn').disabled = currentPage <= 2;
+    document.getElementById('nextBtn').disabled = currentPage + 1 >= totalPages;
+    return;
+  }
+
+  // Letter: single page
+  panel.style.display = totalPages > 1 ? '' : 'none';
+  document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
+  document.getElementById('prevBtn').disabled = currentPage <= 1;
+  document.getElementById('nextBtn').disabled = currentPage >= totalPages;
+}
+
+function prevPage() {
+  if (currentFormat === 'zine') {
+    if (currentPage > 2) { currentPage -= 2; renderPreview(); updatePageNav(); }
+  } else {
+    if (currentPage > 1) { currentPage--; renderPreview(); updatePageNav(); }
+  }
+}
+function nextPage() {
+  if (currentFormat === 'zine') {
+    if (currentPage + 1 < totalPages) { currentPage += 2; renderPreview(); updatePageNav(); }
+  } else {
+    if (currentPage < totalPages) { currentPage++; renderPreview(); updatePageNav(); }
+  }
+}
+
+// ============================================================
+// RENDER PREVIEW
+// ============================================================
+async function renderPreview() {
+  if (!pdfDoc) return;
+  const area = document.getElementById('previewArea');
+  const content = document.getElementById('previewContent');
+  const empty = document.getElementById('emptyState');
+  empty.style.display = 'none';
+  content.style.display = 'flex';
+  content.style.alignItems = 'center';
+  content.style.justifyContent = 'center';
+  content.style.flexDirection = 'column';
+  content.style.gap = '12px';
+  content.innerHTML = '<div class="loading"><div class="spinner"></div>Rendering…</div>';
+
+  const cfg = FORMAT_CONFIG[currentFormat];
+  const areaRect = area.getBoundingClientRect();
+  const maxW = areaRect.width - 80;
+  const maxH = areaRect.height - 80;
+
+  if (currentFormat === 'postcard') {
+    await renderPostcard(content, cfg, maxW, maxH);
+  } else if (currentFormat === 'zine') {
+    await renderZine(content, cfg, maxW, maxH);
+  } else {
+    await renderLetter(content, cfg, maxW, maxH);
+  }
+}
+
+async function renderPageToCanvas(pageNum, canvas, width, height) {
+  if (pageNum < 1 || pageNum > pdfDoc.numPages) {
+    // blank page
+    canvas.width = width * 2;
+    canvas.height = height * 2;
+    canvas.style.width = width + 'px';
+    canvas.style.height = height + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#fff';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    return;
+  }
+  const page = await pdfDoc.getPage(pageNum);
+  const vp = page.getViewport({ scale: 1 });
+  const scale = Math.min((width * 2) / vp.width, (height * 2) / vp.height);
+  const scaled = page.getViewport({ scale });
+  canvas.width = scaled.width;
+  canvas.height = scaled.height;
+  canvas.style.width = width + 'px';
+  canvas.style.height = height + 'px';
+  await page.render({ canvasContext: canvas.getContext('2d'), viewport: scaled }).promise;
+}
+
+async function renderPostcard(container, cfg, maxW, maxH) {
+  const aspect = cfg.w / cfg.h;
+  let w = maxW, h = w / aspect;
+  if (h > maxH) { h = maxH; w = h * aspect; }
+
+  container.innerHTML = `
+    <div class="paper-container">
+      <div class="paper-flipper" id="flipper" onclick="flipCard()" style="width:${w}px; height:${h}px;">
+        <div class="paper-front">
+          <div class="page-side-label">Front</div>
+          <canvas id="frontCanvas"></canvas>
+        </div>
+        <div class="paper-back">
+          <div class="page-side-label">Back</div>
+          <canvas id="backCanvas"></canvas>
+        </div>
+        <div class="flip-hint">Click to flip</div>
+      </div>
+      <div class="dim-label width-label">${cfg.w}" × ${cfg.h}"</div>
+    </div>
+  `;
+
+  await renderPageToCanvas(1, document.getElementById('frontCanvas'), w, h);
+  await renderPageToCanvas(totalPages >= 2 ? 2 : -1, document.getElementById('backCanvas'), w, h);
+}
+
+async function renderLetter(container, cfg, maxW, maxH) {
+  const aspect = cfg.w / cfg.h;
+  let w = maxW, h = w / aspect;
+  if (h > maxH) { h = maxH; w = h * aspect; }
+
+  container.innerHTML = `
+    <div class="paper-container">
+      <div style="width:${w}px; height:${h}px; box-shadow: 0 4px 24px var(--paper-shadow); border-radius: 4px; overflow: hidden; background: var(--paper);">
+        <canvas id="letterCanvas"></canvas>
+      </div>
+      <div class="dim-label width-label">${cfg.w}" × ${cfg.h}"</div>
+    </div>
+  `;
+  await renderPageToCanvas(currentPage, document.getElementById('letterCanvas'), w, h);
+}
+
+async function renderZine(container, cfg, maxW, maxH) {
+  // Spread view: two pages side by side, booklet style
+  const spreadAspect = (cfg.w) / (cfg.h); // 11 / 8.5 for the full spread
+  const pageAspect = (cfg.w / 2) / cfg.h; // 5.5 / 8.5 for each page
+
+  let spreadW = maxW, spreadH = spreadW / spreadAspect;
+  if (spreadH > maxH) { spreadH = maxH; spreadW = spreadH * spreadAspect; }
+  const pageW = spreadW / 2;
+
+  const leftPage = currentPage;
+  const rightPage = currentPage + 1 <= totalPages ? currentPage + 1 : -1;
+
+  container.innerHTML = `
+    <div class="paper-container">
+      <div class="zine-spread" style="width:${spreadW}px; height:${spreadH}px;">
+        <div style="width:${pageW}px; height:${spreadH}px; box-shadow: 0 4px 24px var(--paper-shadow); border-radius: 4px 0 0 4px; overflow: hidden; background: var(--paper);">
+          <canvas id="zineLeft"></canvas>
+        </div>
+        <div style="width:${pageW}px; height:${spreadH}px; box-shadow: 0 4px 24px var(--paper-shadow); border-radius: 0 4px 4px 0; overflow: hidden; background: var(--paper);">
+          <canvas id="zineRight"></canvas>
+        </div>
+        <div class="zine-spine"></div>
+      </div>
+      <div class="dim-label width-label">5.5" × 8.5" booklet</div>
+    </div>
+  `;
+
+  await renderPageToCanvas(leftPage, document.getElementById('zineLeft'), pageW, spreadH);
+  await renderPageToCanvas(rightPage, document.getElementById('zineRight'), pageW, spreadH);
+}
+
+function flipCard() {
+  const f = document.getElementById('flipper');
+  if (!f) return;
+  isFlipped = !isFlipped;
+  f.classList.toggle('flipped', isFlipped);
+  // Hide hint after first flip
+  f.classList.add('flip-hint-hidden');
+}
+
+// ============================================================
+// ADDRESS VALIDATION
+// ============================================================
+function validateAddress() {
+  const fields = ['fullName', 'address1', 'city', 'state', 'zip', 'email'];
+  let valid = true;
+  fields.forEach(id => {
+    const el = document.getElementById(id);
+    if (!el.value.trim()) {
+      el.classList.add('error');
+      valid = false;
+    } else {
+      el.classList.remove('error');
+    }
+  });
+  // Basic email check
+  const emailEl = document.getElementById('email');
+  if (emailEl.value && !emailEl.value.includes('@')) {
+    emailEl.classList.add('error');
+    valid = false;
+  }
+  if (!valid) showToast('Please fill in all required fields.', 'error');
+  return valid;
+}
+
+// ============================================================
+// SUMMARY
+// ============================================================
+function populateSummary() {
+  const cfg = FORMAT_CONFIG[currentFormat];
+  document.getElementById('summaryFormat').textContent = cfg.label;
+  document.getElementById('summaryFile').textContent = pdfFile ? pdfFile.name : '—';
+  document.getElementById('summaryPages').textContent = `${totalPages} page${totalPages > 1 ? 's' : ''}`;
+
+  const name = document.getElementById('fullName').value;
+  const a1 = document.getElementById('address1').value;
+  const a2 = document.getElementById('address2').value;
+  const city = document.getElementById('city').value;
+  const state = document.getElementById('state').value;
+  const zip = document.getElementById('zip').value;
+
+  document.getElementById('summaryAddress').innerHTML =
+    `<strong>${name}</strong><br>${a1}${a2 ? '<br>' + a2 : ''}<br>${city}, ${state} ${zip}`;
+
+  // Render thumbnail
+  if (pdfDoc) {
+    const thumb = document.getElementById('thumbCanvas');
+    renderPageToCanvas(1, thumb, 80, 60);
+  }
+}
+
+// ============================================================
+// SUBMIT ORDER
+// ============================================================
+async function submitOrder() {
+  const btn = document.getElementById('payBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Creating record…';
+
+  try {
+    // ── Step 1: Create Airtable record via backend ──
+    const fields = {
+      'Name': document.getElementById('fullName').value.trim(),
+      'Street': document.getElementById('address1').value.trim(),
+      'Street 2': document.getElementById('address2').value.trim(),
+      'City': document.getElementById('city').value.trim(),
+      'State': document.getElementById('state').value.trim().toUpperCase(),
+      'ZIP': document.getElementById('zip').value.trim(),
+      'Email': document.getElementById('email').value.trim(),
+      'Country': 'US',
+      'Type': FORMAT_CONFIG[currentFormat].label,
+      'Paid': 'No',
+    };
+
+    const createRes = await fetch('/submit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ fields }),
+    });
+
+    if (!createRes.ok) {
+      const err = await createRes.json().catch(() => ({}));
+      throw new Error(err.error || `Server returned ${createRes.status}`);
+    }
+
+    const { recordId } = await createRes.json();
+
+    // ── Step 2: Upload PDF via backend ──
+    btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Uploading PDF…';
+
+    const fileName = pdfFile ? pdfFile.name : 'sample.pdf';
+    const uploadRes = await fetch(`/upload-pdf/${recordId}`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/pdf',
+        'X-Filename': fileName,
+      },
+      body: rawFileData,
+    });
+
+    if (!uploadRes.ok) {
+      console.warn('PDF upload failed');
+      showToast('Record saved, but PDF upload failed. You may need to re-upload.', 'error');
+    }
+
+    // ── Step 3: Redirect to Stripe ──
+    const stripeUrl = `${STRIPE_PAYMENT_LINK}?client_reference_id=${recordId}&prefilled_email=${encodeURIComponent(fields['Email'])}`;
+    window.location.href = stripeUrl;
+
+  } catch (err) {
+    console.error('Submit error:', err);
+    showToast('Something went wrong: ' + err.message, 'error');
+    btn.disabled = false;
+    btn.innerHTML = `
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
+      Pay $2.49 &amp; Send
+    `;
+  }
+}
+
+// ============================================================
+// TOAST
+// ============================================================
+function showToast(msg, type = 'success') {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.className = `toast ${type} visible`;
+  setTimeout(() => t.classList.remove('visible'), 3500);
+}
+</script>
+</body>
+</html>
