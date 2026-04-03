@@ -420,6 +420,12 @@
 <body>
 <div class="app">
 
+  <!-- Header -->
+  <div class="header">
+    <h1>Send a Sample</h1>
+    <p>See what physical mail from StampFans looks like. Upload a PDF, preview it, enter a mailing address, and we'll print &amp; ship it for $2.49. Send it to yourself or a friend.</p>
+  </div>
+
   <!-- Steps -->
   <div class="steps-bar">
     <div class="step-pill active" id="step1pill">
@@ -997,7 +1003,7 @@ async function submitOrder() {
       'Email': document.getElementById('email').value.trim(),
       'Country': 'US',
       'Type': FORMAT_CONFIG[currentFormat].label,
-      'Paid': 'No',
+      'Paid?': false,
     };
 
     const createRes = await fetch('/submit', {
