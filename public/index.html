@@ -561,12 +561,35 @@
             <input type="text" id="city" placeholder="Jacksonville" required>
           </div>
           <div class="form-group">
-            <label for="state">State *</label>
-            <input type="text" id="state" placeholder="FL" maxlength="2" required>
+            <label for="state">State / Province *</label>
+            <input type="text" id="state" placeholder="FL" required>
           </div>
           <div class="form-group">
-            <label for="zip">ZIP *</label>
+            <label for="zip">ZIP / Postal Code *</label>
             <input type="text" id="zip" placeholder="32257" required>
+          </div>
+        </div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="country">Country *</label>
+            <select id="country" required>
+              <option value="USA" selected>USA</option>
+              <option value="Australia">Australia</option>
+              <option value="Belgium">Belgium</option>
+              <option value="Canada">Canada</option>
+              <option value="France">France</option>
+              <option value="Germany">Germany</option>
+              <option value="Greece">Greece</option>
+              <option value="Ireland">Ireland</option>
+              <option value="Italy">Italy</option>
+              <option value="Netherlands">Netherlands</option>
+              <option value="New Zealand">New Zealand</option>
+              <option value="Norway">Norway</option>
+              <option value="Portugal">Portugal</option>
+              <option value="Spain">Spain</option>
+              <option value="Sweden">Sweden</option>
+              <option value="UK">UK</option>
+            </select>
           </div>
         </div>
         <div class="form-row">
@@ -972,9 +995,10 @@ function populateSummary() {
   const city = document.getElementById('city').value;
   const state = document.getElementById('state').value;
   const zip = document.getElementById('zip').value;
+  const country = document.getElementById('country').value;
 
   document.getElementById('summaryAddress').innerHTML =
-    `<strong>${name}</strong><br>${a1}${a2 ? '<br>' + a2 : ''}<br>${city}, ${state} ${zip}`;
+    `<strong>${name}</strong><br>${a1}${a2 ? '<br>' + a2 : ''}<br>${city}, ${state} ${zip}<br>${country}`;
 
   // Render thumbnail
   if (pdfDoc) {
@@ -1001,7 +1025,7 @@ async function submitOrder() {
       'State': document.getElementById('state').value.trim().toUpperCase(),
       'ZIP': document.getElementById('zip').value.trim(),
       'Email': document.getElementById('email').value.trim(),
-      'Country': 'US',
+      'Country': document.getElementById('country').value,
       'Type': FORMAT_CONFIG[currentFormat].label,
       'Paid?': false,
     };
