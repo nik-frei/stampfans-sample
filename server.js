@@ -78,18 +78,21 @@ app.post('/upload-pdf/:recordId', upload.single('pdf'), async (req, res) => {
     const fileName = req.file.originalname || 'sample.pdf';
     console.log(`Uploading PDF for record ${recordId}: ${fileName} (${req.file.size} bytes)`);
 
-    const uploadRes = await fetch(
-      `https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(AIRTABLE_PDF_FIELD)}/uploadAttachment`,
-      {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
-          'Content-Type': 'application/pdf',
-          'Content-Disposition': `attachment; filename="${fileName}"`,
-        },
-        body: req.file.buffer,
-      }
-    );
+    // Convert Buffer to Uint8Array for fetch compatibility
+    const body = new Uint8Array(req.file.buffer);
+
+    const url = `https://content.airtable.com/v0/${AIRTABLE_BASE_ID}/${recordId}/${encodeURIComponent(AIRTABLE_PDF_FIELD)}/uploadAttachment`;
+    console.log('Upload URL:', url);
+
+    const uploadRes = await fetch(url, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${AIRTABLE_API_KEY}`,
+        'Content-Type': 'application/octet-stream',
+        'Content-Disposition': `attachment; filename="${fileName}"`,
+      },
+      body: body,
+    });
 
     if (!uploadRes.ok) {
       const errBody = await uploadRes.text();
