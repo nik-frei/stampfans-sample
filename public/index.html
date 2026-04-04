@@ -1041,13 +1041,12 @@ async function submitOrder() {
     btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Uploading PDF…';
 
     const fileName = pdfFile ? pdfFile.name : 'sample.pdf';
+    const formData = new FormData();
+    formData.append('pdf', pdfFile);
+
     const uploadRes = await fetch(`/upload-pdf/${recordId}`, {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/pdf',
-        'X-Filename': fileName,
-      },
-      body: rawFileData,
+      body: formData,
     });
 
     if (!uploadRes.ok) {
