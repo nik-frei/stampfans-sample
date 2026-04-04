@@ -406,6 +406,43 @@
   .toast.success { background: var(--accent-green); color: var(--white); }
   .toast.error { background: #c0392b; color: var(--white); }
 
+  /* ── In-preview navigation ── */
+  .preview-nav-arrow {
+    position: absolute;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 40px; height: 40px;
+    border-radius: 50%;
+    background: rgba(44, 36, 32, 0.6);
+    color: rgba(255,255,255,0.9);
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.2s, background 0.15s;
+    z-index: 10;
+  }
+  .preview-area:hover .preview-nav-arrow.visible { opacity: 1; }
+  .preview-nav-arrow:hover { background: rgba(44, 36, 32, 0.85); }
+  .preview-nav-arrow.left { left: 16px; }
+  .preview-nav-arrow.right { right: 16px; }
+  .preview-page-indicator {
+    position: absolute;
+    bottom: 16px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(44, 36, 32, 0.6);
+    color: rgba(255,255,255,0.9);
+    font-size: 12px;
+    font-family: var(--mono);
+    padding: 4px 14px;
+    border-radius: 20px;
+    z-index: 10;
+    pointer-events: none;
+  }
+
   /* ── Responsive ── */
   @media (max-width: 768px) {
     .main-layout { grid-template-columns: 1fr; }
@@ -475,19 +512,6 @@
           </div>
         </div>
 
-        <!-- Page nav -->
-        <div class="panel" id="pageNavPanel" style="display:none;">
-          <div class="panel-label">Pages</div>
-          <div class="page-nav">
-            <button onclick="prevPage()" id="prevBtn" disabled>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"></polyline></svg>
-            </button>
-            <span id="pageInfo">1 / 1</span>
-            <button onclick="nextPage()" id="nextBtn" disabled>
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 18 15 12 9 6"></polyline></svg>
-            </button>
-          </div>
-        </div>
 
         <!-- Not sure how to create? -->
         <div class="panel" style="background: var(--accent-light); border-color: rgba(212,101,74,0.15);">
@@ -509,6 +533,13 @@
 
       <!-- Preview -->
       <div class="preview-area" id="previewArea">
+        <button class="preview-nav-arrow left" id="prevArrow" onclick="prevPage()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="15 18 9 12 15 6"></polyline></svg>
+        </button>
+        <button class="preview-nav-arrow right" id="nextArrow" onclick="nextPage()">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><polyline points="9 18 15 12 9 6"></polyline></svg>
+        </button>
+        <div class="preview-page-indicator" id="pageIndicator" style="display:none;"></div>
         <div class="empty-state" id="emptyState">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
             <rect x="3" y="3" width="18" height="18" rx="2"></rect>
@@ -668,8 +699,8 @@ let currentStep = 1;
 
 const FORMAT_CONFIG = {
   postcard: { w: 9, h: 6, label: 'Postcard', maxPages: 2, twoSided: true },
-  letter:   { w: 8.5, h: 11, label: 'Letter', maxPages: 1, twoSided: false },
-  zine:     { w: 11, h: 8.5, label: 'Zine', maxPages: 40, twoSided: false, booklet: true },
+  letter:   { w: 8.5, h: 11, label: 'Letter', maxPages: 8, twoSided: false },
+  zine:     { w: 11, h: 8.5, label: 'Zine', maxPages: 6, twoSided: false, booklet: true },
 };
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -770,43 +801,57 @@ function setFormat(fmt) {
 }
 
 // ============================================================
-// PAGE NAV
+// PAGE NAV (in-preview arrows)
 // ============================================================
 function updatePageNav() {
-  const cfg = FORMAT_CONFIG[currentFormat];
-  const panel = document.getElementById('pageNavPanel');
+  const prevArrow = document.getElementById('prevArrow');
+  const nextArrow = document.getElementById('nextArrow');
+  const indicator = document.getElementById('pageIndicator');
+
+  if (!pdfDoc || totalPages <= 1) {
+    prevArrow.classList.remove('visible');
+    nextArrow.classList.remove('visible');
+    indicator.style.display = 'none';
+    return;
+  }
+
+  indicator.style.display = '';
 
   if (currentFormat === 'postcard') {
-    // Postcard: always 2 sides, use flip
-    panel.style.display = 'none';
-    return;
-  }
-
-  if (currentFormat === 'zine') {
-    // Zine: spread view, navigate by spread
+    prevArrow.classList.toggle('visible', isFlipped);
+    nextArrow.classList.toggle('visible', !isFlipped);
+    indicator.textContent = isFlipped ? 'Back' : 'Front';
+  } else if (currentFormat === 'zine') {
     const numSpreads = Math.ceil(totalPages / 2);
-    panel.style.display = numSpreads > 1 ? '' : 'none';
-    document.getElementById('pageInfo').textContent = `Spread ${Math.ceil(currentPage / 2)} / ${numSpreads}`;
-    document.getElementById('prevBtn').disabled = currentPage <= 2;
-    document.getElementById('nextBtn').disabled = currentPage + 1 >= totalPages;
-    return;
+    const currentSpread = Math.ceil(currentPage / 2);
+    prevArrow.classList.toggle('visible', currentPage > 1);
+    nextArrow.classList.toggle('visible', currentPage + 1 < totalPages);
+    indicator.textContent = `Spread ${currentSpread} / ${numSpreads}`;
+  } else {
+    // Letter
+    prevArrow.classList.toggle('visible', currentPage > 1);
+    nextArrow.classList.toggle('visible', currentPage < totalPages);
+    indicator.textContent = `Page ${currentPage} / ${totalPages}`;
   }
-
-  // Letter: single page
-  panel.style.display = totalPages > 1 ? '' : 'none';
-  document.getElementById('pageInfo').textContent = `${currentPage} / ${totalPages}`;
-  document.getElementById('prevBtn').disabled = currentPage <= 1;
-  document.getElementById('nextBtn').disabled = currentPage >= totalPages;
 }
 
 function prevPage() {
+  if (currentFormat === 'postcard') {
+    if (isFlipped) { flipCard(); }
+    return;
+  }
   if (currentFormat === 'zine') {
     if (currentPage > 2) { currentPage -= 2; renderPreview(); updatePageNav(); }
+    else if (currentPage === 2) { currentPage = 1; renderPreview(); updatePageNav(); }
   } else {
     if (currentPage > 1) { currentPage--; renderPreview(); updatePageNav(); }
   }
 }
 function nextPage() {
+  if (currentFormat === 'postcard') {
+    if (!isFlipped) { flipCard(); }
+    return;
+  }
   if (currentFormat === 'zine') {
     if (currentPage + 1 < totalPages) { currentPage += 2; renderPreview(); updatePageNav(); }
   } else {
@@ -945,8 +990,8 @@ function flipCard() {
   if (!f) return;
   isFlipped = !isFlipped;
   f.classList.toggle('flipped', isFlipped);
-  // Hide hint after first flip
   f.classList.add('flip-hint-hidden');
+  updatePageNav();
 }
 
 // ============================================================
