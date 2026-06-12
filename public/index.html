@@ -472,7 +472,7 @@
     <div class="step-pill" id="step3pill">
       <span class="step-num">3</span>
       <span class="step-check">✓</span>
-      Pay &amp; Send
+      Send
     </div>
   </div>
 
@@ -627,14 +627,14 @@
         <div class="btn-row">
           <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
           <button class="btn btn-primary" id="continueToPayment" onclick="goToStep(3)">
-            Review &amp; Pay →
+            Review &amp; Send →
           </button>
         </div>
       </div>
     </div>
   </div>
 
-  <!-- Step 3: Review & Pay -->
+  <!-- Step 3: Review & Send -->
   <div id="step3" class="step-content" style="display:none;">
     <div style="max-width: 560px;">
       <div class="address-form">
@@ -649,7 +649,7 @@
             <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;" id="summaryFile">—</div>
             <div style="font-size: 13px; color: var(--text-dim); margin-top: 2px;" id="summaryPages">—</div>
           </div>
-          <div class="price-badge">$2</div>
+          <div class="price-badge">Free</div>
         </div>
 
         <div style="margin-bottom: 20px;">
@@ -658,14 +658,14 @@
         </div>
 
         <p style="font-size: 12px; color: var(--text-muted); line-height: 1.5; margin-bottom: 16px;">
-          By clicking "Pay $2 &amp; Send," your order will be saved and you'll be redirected to Stripe to complete payment. Once paid, we'll print and mail your document via USPS. Delivery takes 4–7 business days.
+          By clicking "Send," your order will be saved and we'll print and mail your document via USPS. Delivery takes 4–7 business days.
         </p>
 
         <div class="btn-row">
           <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
           <button class="btn btn-primary" id="payBtn" onclick="submitOrder()" style="flex: 1;">
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-            Pay $2 &amp; Send
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+            Send
           </button>
         </div>
       </div>
@@ -678,13 +678,6 @@
 <div class="toast" id="toast"></div>
 
 <script>
-// ============================================================
-// CONFIGURATION — Fill these in
-// ============================================================
-// Stripe link loaded from server at init
-let STRIPE_PAYMENT_LINK = '';
-fetch('/config').then(r => r.json()).then(c => { STRIPE_PAYMENT_LINK = c.stripePaymentLink; });
-
 // ============================================================
 // STATE
 // ============================================================
@@ -1047,12 +1040,12 @@ function populateSummary() {
 }
 
 // ============================================================
-// SUBMIT ORDER
+// SUBMIT ORDER (free — no payment)
 // ============================================================
 async function submitOrder() {
   const btn = document.getElementById('payBtn');
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Creating record…';
+  btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Saving…';
 
   try {
     // ── Step 1: Create Airtable record via backend ──
@@ -1066,7 +1059,6 @@ async function submitOrder() {
       'Email': document.getElementById('email').value.trim(),
       'Country': document.getElementById('country').value,
       'Type': FORMAT_CONFIG[currentFormat].label,
-      'Paid?': false,
     };
 
     const createRes = await fetch('/submit', {
@@ -1085,7 +1077,6 @@ async function submitOrder() {
     // ── Step 2: Upload PDF via backend ──
     btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Uploading PDF…';
 
-    const fileName = pdfFile ? pdfFile.name : 'sample.pdf';
     const formData = new FormData();
     formData.append('pdf', pdfFile);
 
@@ -1099,19 +1090,45 @@ async function submitOrder() {
       showToast('Record saved, but PDF upload failed. You may need to re-upload.', 'error');
     }
 
-    // ── Step 3: Redirect to Stripe ──
-    const stripeUrl = `${STRIPE_PAYMENT_LINK}?client_reference_id=${recordId}&prefilled_email=${encodeURIComponent(fields['Email'])}`;
-    window.top.location.href = stripeUrl;
+    // ── Step 3: Show success — no payment ──
+    showSuccess();
+    return;
 
   } catch (err) {
     console.error('Submit error:', err);
     showToast('Something went wrong: ' + err.message, 'error');
     btn.disabled = false;
     btn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"></rect><line x1="1" y1="10" x2="23" y2="10"></line></svg>
-      Pay $2 &amp; Send
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+      Send
     `;
   }
+}
+
+// ============================================================
+// SUCCESS STATE
+// ============================================================
+function showSuccess() {
+  // Mark step 3 pill done
+  document.getElementById('step3pill').classList.remove('active');
+  document.getElementById('step3pill').classList.add('done');
+
+  // Replace the step 3 content with a confirmation
+  const name = document.getElementById('fullName').value.trim();
+  document.getElementById('step3').innerHTML = `
+    <div style="max-width: 560px;">
+      <div class="address-form" style="text-align:center; padding: 48px 24px;">
+        <div style="width:56px; height:56px; border-radius:50%; background: rgba(90,154,110,0.12); display:flex; align-items:center; justify-content:center; margin: 0 auto 20px;">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--accent-green)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+        </div>
+        <h2 style="font-family: var(--serif); font-size: 22px; font-weight: 700; margin-bottom: 8px;">You're all set!</h2>
+        <p style="font-size: 14px; color: var(--text-dim); line-height: 1.6; max-width: 400px; margin: 0 auto;">
+          Your sample is on its way to ${name ? name : 'the address you entered'}. We'll print and mail it via USPS — delivery takes about 4–7 business days.
+        </p>
+      </div>
+    </div>
+  `;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
 // ============================================================
