@@ -661,6 +661,8 @@
           By clicking "Send," your order will be saved and we'll print and mail your document via USPS. Delivery takes 4–7 business days.
         </p>
 
+        <div id="inlineError" style="display:none; background: rgba(192,57,43,0.08); border: 1px solid rgba(192,57,43,0.3); color: #c0392b; font-size: 13px; line-height: 1.5; padding: 12px 14px; border-radius: 6px; margin-bottom: 14px;"></div>
+
         <div class="btn-row">
           <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
           <button class="btn btn-primary" id="payBtn" onclick="submitOrder()" style="flex: 1;">
@@ -1044,6 +1046,8 @@ function populateSummary() {
 // ============================================================
 async function submitOrder() {
   const btn = document.getElementById('payBtn');
+  const inlineErr = document.getElementById('inlineError');
+  if (inlineErr) { inlineErr.style.display = 'none'; inlineErr.textContent = ''; }
   btn.disabled = true;
   btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Saving…';
 
@@ -1099,7 +1103,13 @@ async function submitOrder() {
 
   } catch (err) {
     console.error('Submit error:', err);
-    showToast('Something went wrong: ' + err.message, 'error');
+    const inlineErr = document.getElementById('inlineError');
+    if (inlineErr) {
+      inlineErr.textContent = err.message;
+      inlineErr.style.display = 'block';
+    } else {
+      showToast('Something went wrong: ' + err.message, 'error');
+    }
     btn.disabled = false;
     btn.innerHTML = `
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
