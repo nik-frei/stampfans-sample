@@ -56,11 +56,69 @@ app.get('/config', (req, res) => {
   res.json({ stripePaymentLink: STRIPE_PAYMENT_LINK });
 });
 
-// ── POST /submit — creates Airtable record ──
+// ── Helpers for duplicate detection ──
+function normalize(s) {
+  return (s || '').toString().trim().toLowerCase().replace(/\s+/g, ' ');
+}
+// Escape a value for use inside an Airtable formula string literal
+function escapeFormulaValue(s) {
+  return (s || '').toString().replace(/"/g, '\\"');
+}
+
+// Returns the first matching record (by email OR street+zip), or null
+async function findDuplicate(fields) {
+  const email = normalize(fields['Email']);
+  const street = normalize(fields['Street']);
+  const zip = normalize(fields['ZIP']);
+
+  const clauses = [];
+  if (email) {
+    clauses.push(`LOWER(TRIM({Email})) = "${escapeFormulaValue(email)}"`);
+  }
+  // Address match = same street line 1 AND same ZIP
+  if (street && zip) {
+    clauses.push(
+      `AND(LOWER(TRIM({Street})) = "${escapeFormulaValue(street)}", LOWER(TRIM({ZIP})) = "${escapeFormulaValue(zip)}")`
+    );
+  }
+
+  if (clauses.length === 0) return null;
+
+  const formula = clauses.length === 1 ? clauses[0] : `OR(${clauses.join(', ')})`;
+  const url =
+    `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE_NAME)}` +
+    `?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
+
+  const r = await fetch(url, {
+    headers: { 'Authorization': `Bearer ${AIRTABLE_API_KEY}` },
+  });
+
+  if (!r.ok) {
+    // If the lookup itself fails, log it but don't hard-block the user on an infra hiccup
+    const errText = await r.text().catch(() => '');
+    console.error('Duplicate-check lookup failed:', r.status, errText);
+    return null;
+  }
+
+  const data = await r.json();
+  return (data.records && data.records.length > 0) ? data.records[0] : null;
+}
+
+// ── POST /submit — checks for duplicates, then creates Airtable record ──
 app.post('/submit', express.json({ limit: '1mb' }), async (req, res) => {
   try {
     const { fields } = req.body;
     if (!fields) return res.status(400).json({ error: 'Missing fields' });
+
+    // ── Duplicate check (email OR street+zip) ──
+    const dupe = await findDuplicate(fields);
+    if (dupe) {
+      console.log('Duplicate sample request blocked:', dupe.id);
+      return res.status(409).json({
+        error: 'duplicate',
+        message: "It looks like you've already claimed a free sample. Each person can request one.",
+      });
+    }
 
     console.log('Creating Airtable record...');
 
