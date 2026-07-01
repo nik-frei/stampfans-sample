@@ -525,6 +525,9 @@
           </p>
         </div>
 
+        <!-- Format validation warning -->
+        <div id="formatWarning" style="display:none; background: rgba(192,57,43,0.08); border: 1px solid rgba(192,57,43,0.3); color: #c0392b; font-size: 12px; line-height: 1.5; padding: 10px 12px; border-radius: 6px;"></div>
+
         <!-- Continue button -->
         <button class="btn btn-primary" id="continueToAddress" onclick="goToStep(2)" disabled style="width:100%;">
           Continue to Address →
@@ -691,20 +694,93 @@ let currentPage = 1;
 let totalPages = 0;
 let isFlipped = false;
 let currentStep = 1;
+let pendingRecordId = null; // set when a record is created but its PDF hasn't attached yet (lets a retry re-attempt just the upload)
+let zineView = 0; // booklet view index: 0 = front cover alone, 1 = pages 2–3, 2 = pages 4–5, …
 
 const FORMAT_CONFIG = {
   postcard: { w: 9, h: 6, label: 'Postcard', maxPages: 2, twoSided: true },
   letter:   { w: 8.5, h: 11, label: 'Letter', maxPages: 8, twoSided: false },
-  zine:     { w: 11, h: 8.5, label: 'Zine', maxPages: 6, twoSided: false, booklet: true },
+  zine:     { w: 11, h: 8.5, label: 'Zine', maxPages: 12, twoSided: false, booklet: true, minPages: 4, multipleOf: 4 },
 };
 
 pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+
+// ============================================================
+// ZINE / BOOKLET PAGINATION
+// A saddle-stitched booklet reads cover-first:
+//   view 0 → page 1 alone (front cover)
+//   view 1 → pages 2 & 3 (first spread)
+//   view 2 → pages 4 & 5
+//   …last page lands alone as the back cover.
+// ============================================================
+function zineViewCount() {
+  if (totalPages <= 1) return 1;
+  return 1 + Math.ceil((totalPages - 1) / 2);
+}
+
+// Returns { left, right } page numbers for a given view, or null for a blank leaf.
+function zineSpreadPages(view) {
+  if (view <= 0) return { left: null, right: 1 };     // front cover, right-hand leaf
+  const left = 2 * view;                              // view 1 → 2, view 2 → 4, …
+  const right = left + 1;
+  return {
+    left: left <= totalPages ? left : null,
+    right: right <= totalPages ? right : null,
+  };
+}
+
+// ============================================================
+// FORMAT PAGE-COUNT VALIDATION
+// Zines are saddle-stitched booklets and must have a page count that's a
+// multiple of 4 (4, 8, 12, …) or they can't fold into a booklet.
+// Returns an error string if the current file is invalid for the current
+// format, or null if it's fine.
+// ============================================================
+function formatPageError() {
+  if (!pdfDoc) return null;
+  const cfg = FORMAT_CONFIG[currentFormat];
+
+  if (cfg.minPages && totalPages < cfg.minPages) {
+    return `Zines need at least ${cfg.minPages} pages to fold into a booklet — this PDF has ${totalPages}.`;
+  }
+  if (cfg.booklet && cfg.maxPages && totalPages > cfg.maxPages) {
+    return `Zines can be at most ${cfg.maxPages} pages — this PDF has ${totalPages}. Please trim it down.`;
+  }
+  if (cfg.multipleOf && totalPages % cfg.multipleOf !== 0) {
+    const short = cfg.multipleOf - (totalPages % cfg.multipleOf);
+    return `Zines must have a page count that's a multiple of ${cfg.multipleOf} (4, 8, 12…) so they fold into a booklet. ` +
+      `This PDF has ${totalPages} — add ${short} more page${short > 1 ? 's' : ''} (blank pages are fine) or remove ${totalPages % cfg.multipleOf}.`;
+  }
+  return null;
+}
+
+// Shows/hides the warning and enables or disables the Continue button.
+function updateFormatValidation() {
+  const warn = document.getElementById('formatWarning');
+  const continueBtn = document.getElementById('continueToAddress');
+  const err = formatPageError();
+
+  if (!pdfDoc) {
+    if (warn) warn.style.display = 'none';
+    if (continueBtn) continueBtn.disabled = true;
+    return;
+  }
+
+  if (err) {
+    if (warn) { warn.textContent = err; warn.style.display = 'block'; }
+    if (continueBtn) continueBtn.disabled = true;
+  } else {
+    if (warn) warn.style.display = 'none';
+    if (continueBtn) continueBtn.disabled = false;
+  }
+}
 
 // ============================================================
 // STEP NAVIGATION
 // ============================================================
 function goToStep(step) {
   if (step === 2 && !pdfDoc) return;
+  if (step === 2 && formatPageError()) return;
   if (step === 3 && !validateAddress()) return;
 
   // Update pills
@@ -759,6 +835,7 @@ async function handleFile(file) {
   pdfDoc = await pdfjsLib.getDocument({ data: buf }).promise;
   totalPages = pdfDoc.numPages;
   currentPage = 1;
+  zineView = 0;
   isFlipped = false;
 
   // Update upload zone
@@ -775,6 +852,7 @@ async function handleFile(file) {
   `;
 
   document.getElementById('continueToAddress').disabled = false;
+  updateFormatValidation();
   renderPreview();
   updatePageNav();
 }
@@ -788,8 +866,10 @@ function setFormat(fmt) {
     b.classList.toggle('active', b.dataset.format === fmt);
   });
   currentPage = 1;
+  zineView = 0;
   isFlipped = false;
   if (pdfDoc) {
+    updateFormatValidation();
     renderPreview();
     updatePageNav();
   }
@@ -817,11 +897,16 @@ function updatePageNav() {
     nextArrow.classList.toggle('visible', !isFlipped);
     indicator.textContent = isFlipped ? 'Back' : 'Front';
   } else if (currentFormat === 'zine') {
-    const numSpreads = Math.ceil(totalPages / 2);
-    const currentSpread = Math.ceil(currentPage / 2);
-    prevArrow.classList.toggle('visible', currentPage > 1);
-    nextArrow.classList.toggle('visible', currentPage + 1 < totalPages);
-    indicator.textContent = `Spread ${currentSpread} / ${numSpreads}`;
+    const views = zineViewCount();
+    prevArrow.classList.toggle('visible', zineView > 0);
+    nextArrow.classList.toggle('visible', zineView < views - 1);
+    if (zineView === 0) {
+      indicator.textContent = 'Front cover';
+    } else {
+      const { left, right } = zineSpreadPages(zineView);
+      if (left && right) indicator.textContent = `Pages ${left}–${right}`;
+      else indicator.textContent = `Back cover (p. ${left || right})`;
+    }
   } else {
     // Letter
     prevArrow.classList.toggle('visible', currentPage > 1);
@@ -836,8 +921,7 @@ function prevPage() {
     return;
   }
   if (currentFormat === 'zine') {
-    if (currentPage > 2) { currentPage -= 2; renderPreview(); updatePageNav(); }
-    else if (currentPage === 2) { currentPage = 1; renderPreview(); updatePageNav(); }
+    if (zineView > 0) { zineView--; renderPreview(); updatePageNav(); }
   } else {
     if (currentPage > 1) { currentPage--; renderPreview(); updatePageNav(); }
   }
@@ -848,7 +932,7 @@ function nextPage() {
     return;
   }
   if (currentFormat === 'zine') {
-    if (currentPage + 1 < totalPages) { currentPage += 2; renderPreview(); updatePageNav(); }
+    if (zineView < zineViewCount() - 1) { zineView++; renderPreview(); updatePageNav(); }
   } else {
     if (currentPage < totalPages) { currentPage++; renderPreview(); updatePageNav(); }
   }
@@ -950,16 +1034,35 @@ async function renderLetter(container, cfg, maxW, maxH) {
 }
 
 async function renderZine(container, cfg, maxW, maxH) {
-  // Spread view: two pages side by side, booklet style
-  const spreadAspect = (cfg.w) / (cfg.h); // 11 / 8.5 for the full spread
-  const pageAspect = (cfg.w / 2) / cfg.h; // 5.5 / 8.5 for each page
+  // Each zine page is 5.5 × 8.5 (portrait); a full open spread is 11 × 8.5.
+  const pageAspect = 5.5 / 8.5;   // single leaf
+  const spreadAspect = 11 / 8.5;  // two leaves side by side
 
+  const { left, right } = zineSpreadPages(zineView);
+  const isSingleLeaf = !(left && right); // cover or back cover sits alone
+
+  if (isSingleLeaf) {
+    // Front cover (right-hand leaf) or back cover (left-hand leaf): one page, centered.
+    const pageNum = left || right;
+    let w = maxW, h = w / pageAspect;
+    if (h > maxH) { h = maxH; w = h * pageAspect; }
+
+    container.innerHTML = `
+      <div class="paper-container">
+        <div style="width:${w}px; height:${h}px; box-shadow: 0 4px 24px var(--paper-shadow); border-radius: 4px; overflow: hidden; background: var(--paper);">
+          <canvas id="zineSingle"></canvas>
+        </div>
+        <div class="dim-label width-label">5.5" × 8.5" ${zineView === 0 ? 'cover' : 'page'}</div>
+      </div>
+    `;
+    await renderPageToCanvas(pageNum, document.getElementById('zineSingle'), w, h);
+    return;
+  }
+
+  // Interior spread: two facing pages.
   let spreadW = maxW, spreadH = spreadW / spreadAspect;
   if (spreadH > maxH) { spreadH = maxH; spreadW = spreadH * spreadAspect; }
   const pageW = spreadW / 2;
-
-  const leftPage = currentPage;
-  const rightPage = currentPage + 1 <= totalPages ? currentPage + 1 : -1;
 
   container.innerHTML = `
     <div class="paper-container">
@@ -976,8 +1079,8 @@ async function renderZine(container, cfg, maxW, maxH) {
     </div>
   `;
 
-  await renderPageToCanvas(leftPage, document.getElementById('zineLeft'), pageW, spreadH);
-  await renderPageToCanvas(rightPage, document.getElementById('zineRight'), pageW, spreadH);
+  await renderPageToCanvas(left, document.getElementById('zineLeft'), pageW, spreadH);
+  await renderPageToCanvas(right, document.getElementById('zineRight'), pageW, spreadH);
 }
 
 function flipCard() {
@@ -1043,79 +1146,128 @@ function populateSummary() {
 
 // ============================================================
 // SUBMIT ORDER (free — no payment)
+//
+// Two-phase: (1) create the Airtable record, (2) upload the PDF.
+// The PDF upload is REQUIRED for success — if it fails we surface a clear
+// error instead of showing "You're all set" with no document attached.
+// If the record was already created (a prior attempt's upload failed), a
+// retry skips creation and re-attempts only the upload, so the email-only
+// duplicate check doesn't block the retry.
 // ============================================================
+function spinnerHTML(text) {
+  return `<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> ${text}`;
+}
+
+function sendBtnHTML() {
+  return `
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+    Send
+  `;
+}
+
+function showSubmitError(msg) {
+  const btn = document.getElementById('payBtn');
+  const inlineErr = document.getElementById('inlineError');
+  if (inlineErr) {
+    inlineErr.textContent = msg;
+    inlineErr.style.display = 'block';
+  } else {
+    showToast(msg, 'error');
+  }
+  btn.disabled = false;
+  btn.innerHTML = sendBtnHTML();
+}
+
 async function submitOrder() {
   const btn = document.getElementById('payBtn');
   const inlineErr = document.getElementById('inlineError');
   if (inlineErr) { inlineErr.style.display = 'none'; inlineErr.textContent = ''; }
+
+  // Guard: never create a record if we've lost the file — that's exactly how
+  // an address ends up in Airtable with no document.
+  if (!pdfFile) {
+    showSubmitError('Your PDF is no longer loaded. Please go back to Step 1 and re-upload before sending.');
+    return;
+  }
+
   btn.disabled = true;
-  btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Saving…';
 
-  try {
-    // ── Step 1: Create Airtable record via backend ──
-    const fields = {
-      'Name': document.getElementById('fullName').value.trim(),
-      'Street': document.getElementById('address1').value.trim(),
-      'Street 2': document.getElementById('address2').value.trim(),
-      'City': document.getElementById('city').value.trim(),
-      'State': document.getElementById('state').value.trim().toUpperCase(),
-      'ZIP': document.getElementById('zip').value.trim(),
-      'Email': document.getElementById('email').value.trim(),
-      'Country': document.getElementById('country').value,
-      'Type': FORMAT_CONFIG[currentFormat].label,
-    };
+  // ── Step 1: Create the Airtable record (skip if a prior attempt already made one) ──
+  if (!pendingRecordId) {
+    btn.innerHTML = spinnerHTML('Saving…');
+    try {
+      const fields = {
+        'Name': document.getElementById('fullName').value.trim(),
+        'Street': document.getElementById('address1').value.trim(),
+        'Street 2': document.getElementById('address2').value.trim(),
+        'City': document.getElementById('city').value.trim(),
+        'State': document.getElementById('state').value.trim().toUpperCase(),
+        'ZIP': document.getElementById('zip').value.trim(),
+        'Email': document.getElementById('email').value.trim(),
+        'Country': document.getElementById('country').value,
+        'Type': FORMAT_CONFIG[currentFormat].label,
+      };
 
-    const createRes = await fetch('/submit', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ fields }),
-    });
+      const createRes = await fetch('/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fields }),
+      });
 
-    if (!createRes.ok) {
-      const err = await createRes.json().catch(() => ({}));
-      if (createRes.status === 409) {
-        throw new Error(err.message || "It looks like you've already claimed a free sample.");
+      if (!createRes.ok) {
+        const err = await createRes.json().catch(() => ({}));
+        if (createRes.status === 409) {
+          throw new Error(err.message || "It looks like you've already claimed a free sample.");
+        }
+        throw new Error(err.error || `Server returned ${createRes.status}`);
       }
-      throw new Error(err.error || `Server returned ${createRes.status}`);
+
+      const created = await createRes.json();
+      pendingRecordId = created.recordId;
+      console.log('[submit] record created:', pendingRecordId,
+        '| format:', currentFormat,
+        '| file:', pdfFile.name, `(${pdfFile.size} bytes)`);
+    } catch (err) {
+      // Record creation failed — nothing orphaned, safe to just show the error.
+      console.error('[submit] create failed:', err);
+      showSubmitError(err.message);
+      return;
+    }
+  }
+
+  // ── Step 2: Upload the PDF — REQUIRED. No success screen until this lands. ──
+  btn.innerHTML = spinnerHTML('Uploading PDF…');
+  try {
+    if (!(pdfFile instanceof Blob)) {
+      throw new Error('The selected file is no longer readable. Please re-upload your PDF.');
     }
 
-    const { recordId } = await createRes.json();
-
-    // ── Step 2: Upload PDF via backend ──
-    btn.innerHTML = '<div class="spinner" style="width:18px;height:18px;border-width:2px;"></div> Uploading PDF…';
-
     const formData = new FormData();
-    formData.append('pdf', pdfFile);
+    formData.append('pdf', pdfFile, pdfFile.name || 'sample.pdf');
 
-    const uploadRes = await fetch(`/upload-pdf/${recordId}`, {
+    console.log('[submit] uploading PDF for', pendingRecordId, '…');
+    const uploadRes = await fetch(`/upload-pdf/${pendingRecordId}`, {
       method: 'POST',
       body: formData,
     });
+    console.log('[submit] upload responded', uploadRes.status);
 
     if (!uploadRes.ok) {
-      console.warn('PDF upload failed');
-      showToast('Record saved, but PDF upload failed. You may need to re-upload.', 'error');
+      const body = await uploadRes.text().catch(() => '');
+      throw new Error(`Upload failed (${uploadRes.status})${body ? ': ' + body : ''}`);
     }
-
-    // ── Step 3: Show success — no payment ──
-    showSuccess();
-    return;
-
   } catch (err) {
-    console.error('Submit error:', err);
-    const inlineErr = document.getElementById('inlineError');
-    if (inlineErr) {
-      inlineErr.textContent = err.message;
-      inlineErr.style.display = 'block';
-    } else {
-      showToast('Something went wrong: ' + err.message, 'error');
-    }
-    btn.disabled = false;
-    btn.innerHTML = `
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-      Send
-    `;
+    // Record exists but the document didn't attach. Keep pendingRecordId so a
+    // retry re-attempts ONLY the upload (won't hit the duplicate block), and be
+    // honest with the user instead of showing a false "all set."
+    console.error('[submit] upload failed:', err);
+    showSubmitError("We saved your address but couldn't attach your file. Click Send to try attaching it again.");
+    return;
   }
+
+  // ── Both phases succeeded ──
+  pendingRecordId = null;
+  showSuccess();
 }
 
 // ============================================================
