@@ -65,26 +65,13 @@ function escapeFormulaValue(s) {
   return (s || '').toString().replace(/"/g, '\\"');
 }
 
-// Returns the first matching record (by email OR street+zip), or null
+// Returns the first record matching the same email, or null.
+// (Duplicate detection is EMAIL-ONLY — two people at the same address can both request a sample.)
 async function findDuplicate(fields) {
   const email = normalize(fields['Email']);
-  const street = normalize(fields['Street']);
-  const zip = normalize(fields['ZIP']);
+  if (!email) return null;
 
-  const clauses = [];
-  if (email) {
-    clauses.push(`LOWER(TRIM({Email})) = "${escapeFormulaValue(email)}"`);
-  }
-  // Address match = same street line 1 AND same ZIP
-  if (street && zip) {
-    clauses.push(
-      `AND(LOWER(TRIM({Street})) = "${escapeFormulaValue(street)}", LOWER(TRIM({ZIP})) = "${escapeFormulaValue(zip)}")`
-    );
-  }
-
-  if (clauses.length === 0) return null;
-
-  const formula = clauses.length === 1 ? clauses[0] : `OR(${clauses.join(', ')})`;
+  const formula = `LOWER(TRIM({Email})) = "${escapeFormulaValue(email)}"`;
   const url =
     `https://api.airtable.com/v0/${AIRTABLE_BASE_ID}/${encodeURIComponent(AIRTABLE_TABLE_NAME)}` +
     `?filterByFormula=${encodeURIComponent(formula)}&maxRecords=1`;
@@ -110,7 +97,7 @@ app.post('/submit', express.json({ limit: '1mb' }), async (req, res) => {
     const { fields } = req.body;
     if (!fields) return res.status(400).json({ error: 'Missing fields' });
 
-    // ── Duplicate check (email OR street+zip) ──
+    // ── Duplicate check (email only) ──
     const dupe = await findDuplicate(fields);
     if (dupe) {
       console.log('Duplicate sample request blocked:', dupe.id);
@@ -155,7 +142,7 @@ app.post('/upload-pdf/:recordId', upload.single('pdf'), async (req, res) => {
     const { recordId } = req.params;
 
     if (!req.file) {
-      console.error('No PDF file received');
+      console.error('No PDF file received for record', recordId);
       return res.status(400).json({ error: 'No PDF file received' });
     }
 
