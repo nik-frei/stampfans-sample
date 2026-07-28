@@ -194,6 +194,7 @@
     flex-shrink: 0;
   }
   .format-thumb.postcard { width: 36px; height: 24px; }
+  .format-thumb.print { width: 24px; height: 36px; border: 3px solid var(--white); outline: 1px solid var(--border); background: var(--border-light); }
   .format-thumb.letter { width: 28px; height: 36px; }
   .format-thumb.zine { width: 28px; height: 36px; border-left: 2px solid var(--accent); }
   .format-name { font-size: 13px; font-weight: 500; color: var(--text); }
@@ -501,6 +502,10 @@
               <div class="format-thumb postcard"></div>
               <div><div class="format-name">Postcard</div><div class="format-dims">6 × 9 in</div></div>
             </button>
+            <button class="format-btn" data-format="print" onclick="setFormat('print')">
+              <div class="format-thumb print"></div>
+              <div><div class="format-name">Print</div><div class="format-dims">5.5 × 8.5 in</div></div>
+            </button>
             <button class="format-btn" data-format="letter" onclick="setFormat('letter')">
               <div class="format-thumb letter"></div>
               <div><div class="format-name">Letter</div><div class="format-dims">8.5 × 11 in</div></div>
@@ -519,6 +524,7 @@
           <p style="font-size: 13px; color: var(--text-dim); line-height: 1.5;">
             Try our Canva templates:
             <a href="https://www.canva.com/design/DAGo3NZL3Qo/AhkoQ9YANOo-fosDIwYs4g/view" target="_blank" style="color: var(--accent);">postcard</a>,
+            <a href="https://canva.link/ng0v1xwu0ncvqsh" target="_blank" style="color: var(--accent);">print</a>,
             <a href="https://www.canva.com/design/DAG9sTjYrX0/ANC2xyhLf-_OAO6FLfgsRg/view" target="_blank" style="color: var(--accent);">letter</a>, or
             <a href="https://www.canva.com/design/DAGmKWAnbTM/SJ78RLxdaojqn5aRWPXTiQ/view" target="_blank" style="color: var(--accent);">zine</a>.
             Download as PDF when done.
@@ -699,6 +705,7 @@ let zineView = 0; // booklet view index: 0 = front cover alone, 1 = pages 2–3,
 
 const FORMAT_CONFIG = {
   postcard: { w: 9, h: 6, label: 'Postcard', maxPages: 2, twoSided: true },
+  print:    { w: 5.5, h: 8.5, label: 'Print', maxPages: 2, twoSided: true },
   letter:   { w: 8.5, h: 11, label: 'Letter', maxPages: 8, twoSided: false },
   zine:     { w: 11, h: 8.5, label: 'Zine', maxPages: 12, twoSided: false, booklet: true, minPages: 4, multipleOf: 4 },
 };
@@ -733,6 +740,7 @@ function zineSpreadPages(view) {
 // FORMAT PAGE-COUNT VALIDATION
 // Zines are saddle-stitched booklets and must have a page count that's a
 // multiple of 4 (4, 8, 12, …) or they can't fold into a booklet.
+// Prints are a single sheet: a front, and an optional back.
 // Returns an error string if the current file is invalid for the current
 // format, or null if it's fine.
 // ============================================================
@@ -740,6 +748,9 @@ function formatPageError() {
   if (!pdfDoc) return null;
   const cfg = FORMAT_CONFIG[currentFormat];
 
+  if (currentFormat === 'print' && totalPages > 2) {
+    return `Prints are a single sheet — a front and an optional back. This PDF has ${totalPages} pages. Please trim it to 1 or 2.`;
+  }
   if (cfg.minPages && totalPages < cfg.minPages) {
     return `Zines need at least ${cfg.minPages} pages to fold into a booklet — this PDF has ${totalPages}.`;
   }
@@ -892,7 +903,7 @@ function updatePageNav() {
 
   indicator.style.display = '';
 
-  if (currentFormat === 'postcard') {
+  if (currentFormat === 'postcard' || currentFormat === 'print') {
     prevArrow.classList.toggle('visible', isFlipped);
     nextArrow.classList.toggle('visible', !isFlipped);
     indicator.textContent = isFlipped ? 'Back' : 'Front';
@@ -916,7 +927,7 @@ function updatePageNav() {
 }
 
 function prevPage() {
-  if (currentFormat === 'postcard') {
+  if (currentFormat === 'postcard' || currentFormat === 'print') {
     if (isFlipped) { flipCard(); }
     return;
   }
@@ -927,7 +938,7 @@ function prevPage() {
   }
 }
 function nextPage() {
-  if (currentFormat === 'postcard') {
+  if (currentFormat === 'postcard' || currentFormat === 'print') {
     if (!isFlipped) { flipCard(); }
     return;
   }
@@ -959,7 +970,7 @@ async function renderPreview() {
   const maxW = areaRect.width - 80;
   const maxH = areaRect.height - 80;
 
-  if (currentFormat === 'postcard') {
+  if (currentFormat === 'postcard' || currentFormat === 'print') {
     await renderPostcard(content, cfg, maxW, maxH);
   } else if (currentFormat === 'zine') {
     await renderZine(content, cfg, maxW, maxH);
@@ -991,6 +1002,8 @@ async function renderPageToCanvas(pageNum, canvas, width, height) {
   await page.render({ canvasContext: canvas.getContext('2d'), viewport: scaled }).promise;
 }
 
+// Serves both postcards (landscape) and prints (portrait) — the geometry
+// comes entirely from cfg.w / cfg.h, and both are front + optional back.
 async function renderPostcard(container, cfg, maxW, maxH) {
   const aspect = cfg.w / cfg.h;
   let w = maxW, h = w / aspect;
@@ -1124,7 +1137,9 @@ function populateSummary() {
   const cfg = FORMAT_CONFIG[currentFormat];
   document.getElementById('summaryFormat').textContent = cfg.label;
   document.getElementById('summaryFile').textContent = pdfFile ? pdfFile.name : '—';
-  document.getElementById('summaryPages').textContent = `${totalPages} page${totalPages > 1 ? 's' : ''}`;
+  document.getElementById('summaryPages').textContent =
+    `${totalPages} page${totalPages > 1 ? 's' : ''}` +
+    (currentFormat === 'print' ? ' · mailed in a 6×9 envelope' : '');
 
   const name = document.getElementById('fullName').value;
   const a1 = document.getElementById('address1').value;
