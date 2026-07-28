@@ -28,7 +28,7 @@ setInterval(() => {
 // ── Multer for file uploads ──
 const upload = multer({
   storage: multer.memoryStorage(),
-  limits: { fileSize: 25 * 1024 * 1024 },
+  limits: { fileSize: 50 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     if (file.mimetype === 'application/pdf') cb(null, true);
     else cb(new Error('Only PDF files are allowed'));
@@ -204,7 +204,7 @@ app.get('/', (req, res) => {
 // ── Error handler for multer ──
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError && err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({ error: 'PDF too large. Please keep it under 25MB.' });
+    return res.status(413).json({ error: 'PDF too large. Please keep it under 50MB.' });
   }
   if (err.message === 'Only PDF files are allowed') {
     return res.status(400).json({ error: 'Only PDF files are accepted.' });
